@@ -17,7 +17,7 @@
   ##
   
 <div> 
-  <a href="https://instagram.com/bbbryx_" target="_blank"><img height="50" width="90" src="https://img.shields.io/badge/-Instagram-%23E4405F?style=for-the-badge&logo=instagram&logoColor=white" target="_blank"></a>
+  <a href="https://instagram.com/https.jsouza" target="_blank"><img height="50" width="90" src="https://img.shields.io/badge/-Instagram-%23E4405F?style=for-the-badge&logo=instagram&logoColor=white" target="_blank"></a>
   <a href="mailto:jsoouzaa@hotmail.com"><img height="50" width="90" src="https://img.shields.io/badge/-Hotmail-%23333?style=for-the-badge&logo=hotmail&logoColor=white" target="_blank"></a>
   <a href="https://open.spotify.com/user/tzeneob3qrdc9eo8t9qs9ggan"><img height="50" width="90" src="https://img.shields.io/badge/Spotify-1ED760?&style=for-the-badge&logo=spotify&logoColor=white"
 </div>
