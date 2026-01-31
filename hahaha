@@ -1,0 +1,283 @@
+--// Core
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+--// Core
+local PLR = game:GetService("Players")
+local RS = game:GetService("RunService")
+local VIM = game:GetService("VirtualInputManager")
+local UIS = game:GetService("UserInputService")
+
+--// Config
+local AUTOPARRY_ACTIVATED = false
+local AUTOPARRY_RANGE = 10
+local AUTOPRECLICK_ACTIVATED = false
+local BYPASSGAZO_ACTIVATED = false
+local FAKEPING_ACTIVATED = false
+local FAKEPING_MIN = 1
+local FAKEPING_MAX = 5
+local CENSUREDHEAD_ACTIVATED = false
+
+--// Pre globals
+local fakepingText
+
+--// Pre Methods
+local function getPingLabel()
+	local ok, pingLabel = pcall(function()
+		return game:GetService("Players").LocalPlayer.PlayerGui.HUD.HolderLeftBottom.ServerStatistics.PingLabel
+	end)
+	if ok then return pingLabel end
+end
+
+--// Build Gui
+local Window = Fluent:CreateWindow({
+	Title = "ap poderoso.",
+	SubTitle = "by jv",
+	TabWidth = 160,
+	Size = UDim2.fromOffset(520, 310),
+	TabWidth = 130,
+	Acrylic = false,
+	Theme = "Rose",
+	MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+local Tabs = { --Fluent provides Lucide Icons https://lucide.dev/icons/ for the tabs, icons are optional
+	Main = Window:AddTab({ Title = "Main", Icon = "sword" }),
+}
+
+local Options = Fluent.Options
+do
+	Tabs.Main:AddParagraph({
+		Title = "dc",
+		Content = "@jotaveszz"
+	})
+
+	-- Auto parry
+	local toggleAutoparry = Tabs.Main:AddToggle("Toggle", {Title = "Auto parry", Default = false, Description="Automatically parries incoming attacks"})
+
+	toggleAutoparry:OnChanged(function()
+		AUTOPARRY_ACTIVATED = toggleAutoparry.Value
+	end)
+
+	-- Auto parry keybind
+	local Keybind = Tabs.Main:AddKeybind("Keybind", {
+		Title = "Keybind",
+		Mode = "Toggle",
+		Default = "E",
+		Callback = function()
+			toggleAutoparry:SetValue(not toggleAutoparry.Value)
+		end,
+	})
+
+	-- Auto parry range
+	local sliderParryrange = Tabs.Main:AddSlider("Slider", {
+		Title = "Parry range",
+		Description = "Parry distance (in studs).",
+		Default = 10,
+		Min = 1,
+		Max = 50,
+		Rounding = .1,
+	})
+
+	sliderParryrange:OnChanged(function(value)
+		AUTOPARRY_RANGE = tonumber(value)
+	end)
+
+	-- Bypass gazo
+	local toggleBypassgazo = Tabs.Main:AddToggle("Toggle", {Title = "Bypass gazo evo", Default = false, Description="Bypasses Gazo Evolution"})
+
+	toggleBypassgazo:OnChanged(function()
+		BYPASSGAZO_ACTIVATED = toggleBypassgazo.Value
+	end)
+
+	-- Fake ping
+	local toggleFakeping = Tabs.Main:AddToggle("Toggle", {Title = "Fake ping", Default = false, Description="Simulates custom client ping"})
+
+	toggleFakeping:OnChanged(function()
+		FAKEPING_ACTIVATED = toggleFakeping.Value
+
+		if not FAKEPING_ACTIVATED then
+			getPingLabel().Text = "..."
+		end
+	end)
+
+	-- Min ping
+	local inputMinping = Tabs.Main:AddInput("Input", {
+		Title = "Min ping",
+		Default = "8",
+		Placeholder = "Placeholder",
+		Numeric = true,
+		Finished = true,
+		Description="Minimum simulated ping (ms)",
+	})
+
+	inputMinping:OnChanged(function()
+		FAKEPING_MIN = tonumber(inputMinping.Value)
+	end)
+
+	-- Max ping
+	local inputMaxping = Tabs.Main:AddInput("Input", {
+		Title = "Max ping",
+		Default = "15",
+		Placeholder = "Placeholder",
+		Numeric = true,
+		Finished = true,
+		Description="Maximum simulated ping (ms)",
+	})
+
+	inputMaxping:OnChanged(function()
+		FAKEPING_MAX = tonumber(inputMaxping.Value)
+	end)
+
+	-- Censured head
+	local toggleCensuredhead = Tabs.Main:AddToggle("Toggle", {Title = "Ap head", Default = false, Description="Shows \"Censured\" when AP is active"})
+
+	toggleCensuredhead:OnChanged(function()
+		CENSUREDHEAD_ACTIVATED = toggleCensuredhead.Value
+	end)
+end
+
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+
+SaveManager:IgnoreThemeSettings()
+
+InterfaceManager:SetFolder("123HUB")
+SaveManager:SetFolder("123HUB/db")
+
+Window:SelectTab(1)
+
+Fluent:Notify({
+	Title = "ap poderoso.",
+	Content = "The script has been loaded.",
+	Duration = 5
+})
+
+SaveManager:LoadAutoloadConfig()
+
+--// Globals
+local player = PLR.LocalPlayer
+local targetCharacter = nil
+local billboardGui = nil
+local deflectTime = os.clock()
+local gazoEvo = false
+
+--// Methods
+local function initBillboard(chr)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Parent = game:GetService("CoreGui")
+	billboard.Adornee = chr:WaitForChild("Head")
+	billboard.Size = UDim2.new(1,0,1,0)
+	billboard.AlwaysOnTop = true
+	billboard.StudsOffset = Vector3.new(-.5,.5,0)
+	billboard.LightInfluence = 0
+
+	local label = Instance.new("TextLabel")
+	label.Parent = billboard
+	label.Size = UDim2.new(2,0,2,0)
+	label.Text = "CENSURED"
+	label.TextScaled = true
+	label.BackgroundTransparency = .2
+	label.TextColor3 = Color3.new(1,0,0)
+	label.BackgroundColor3 = Color3.new(0,0,0)
+	label.Visible = false
+
+	billboardGui = billboard
+end
+
+local function getBallPosition()
+	local ballShadow = workspace.FX:FindFirstChild("BallShadow")
+	if not ballShadow then return end
+
+	local height = ballShadow.Position.Y + 2 + (ballShadow.Size.X - 5) * 20
+	return Vector3.new(ballShadow.Position.X, height, ballShadow.Position.Z)
+end
+
+local function initializeCharacter(char)
+	char.ChildAdded:Connect(function(child)
+		if child.Name == "Highlight" then
+			targetCharacter = char
+		end
+	end)
+
+	if char ~= player.Character then return end
+
+	char.Highlight:GetPropertyChangedSignal("FillTransparency"):Connect(function()
+		if char.Highlight.FillTransparency ~= 1 then
+			deflectTime = os.clock()
+		end
+	end)
+
+	initBillboard(char)
+end
+
+local function canClick()
+	if gazoEvo and BYPASSGAZO_ACTIVATED then return false end
+	return true
+end
+
+--// Connections
+player.CharacterAdded:Connect(initializeCharacter)
+
+RS.Heartbeat:Connect(function(delta)
+	if FAKEPING_ACTIVATED then
+		getPingLabel().Text = fakepingText
+	end
+
+	if CENSUREDHEAD_ACTIVATED and billboardGui and AUTOPARRY_ACTIVATED then
+		billboardGui.TextLabel.Visible = true
+	elseif billboardGui then
+		billboardGui.TextLabel.Visible = false
+	end
+
+	local character = player.Character
+	if not character then return end
+
+	local pos = getBallPosition()
+	if not pos then return end
+
+	-- parry self
+	local distance = (character.HumanoidRootPart.Position - pos).Magnitude
+	if AUTOPARRY_ACTIVATED and canClick() and distance < AUTOPARRY_RANGE and character.Highlight.FillTransparency ~= 1 then
+		VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+		task.wait()
+		VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+	end
+
+	-- parry nearest
+    --[[if AUTOPRECLICK_ACTIVATED and targetCharacter then
+        local distance2 = (targetCharacter.HumanoidRootPart.Position - pos).Magnitude
+        local distance3 = (character.HumanoidRootPart.Position - targetCharacter.HumanoidRootPart.Position).Magnitude
+        if distance2 < 14 and distance3 < 14 then
+            VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+            task.wait()
+            VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        end
+    end]]
+end)
+
+workspace.DescendantAdded:Connect(function(child)
+	if child:IsA("Sound") and child.SoundId == "rbxassetid://129349547626045" then
+		gazoEvo = true
+		task.wait(.8)
+		gazoEvo = false
+	end
+end)
+
+--// Started
+for _, plr in PLR:GetPlayers() do
+	if plr.Character then
+		initializeCharacter(plr.Character)
+	end
+end
+
+task.spawn(function()
+	while task.wait(4) do
+		local ok, ms = pcall(function()
+			return math.random(FAKEPING_MIN,FAKEPING_MAX)
+		end)
+
+		fakepingText = ok and ms.."ms" or "error"
+	end
+end)
